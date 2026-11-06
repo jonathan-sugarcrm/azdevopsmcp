@@ -15,7 +15,7 @@ Claude can list release definitions by id and name, and pull one full definition
 ### `get_release_definition`
 - Input: `project`, numeric `id`. No name lookup; use the list tool to find the id.
 - Call: `GET {vsrm}/{project}/_apis/release/definitions/{id}?api-version=7.1`.
-- Output: environments, tasks, inputs and variables, redacted as in SPEC section 4. Cap 200 KB, with `truncated`.
+- Output: environments, tasks, inputs and variables, redacted as in SPEC section 4. Up to 200 KB inline. Larger output is never cut: the full redacted JSON is written to an export file and the result returns `truncated: true`, `fullSize` and `savedTo` (SPEC section 3b).
 
 ## Task group expansion
 - A step with `definitionType: metaTask` references a task group by id.
@@ -42,13 +42,13 @@ Needs **Task Groups: Read** as well as the scopes in SPEC section 9. Without it,
 7. Task group expansion.
 
 ## Acceptance
-1. `list_release_definitions` for `Modax` returns ids and names, including `Deploy Big Boy - Tabular Model`.
+1. `list_release_definitions` for `Orion` returns ids and names (28 definitions on 6 Nov 2026, including id 199, `sales-i TabularModel Production`).
 2. `get_release_definition` for that id lists its tasks and inputs, with secret variables and secret-named inputs masked.
 3. A definition with a task group returns it as `expandedTaskGroup`, with nested groups expanded.
 4. A looping group returns `cycle: true`. An unreadable group returns `{id, error}` and the rest of the definition is intact.
 5. A bad PAT returns `PAT rejected or expired`; the token is absent from the output and the audit log.
 6. A project outside the allowlist returns `project_not_allowed` with no HTTP call.
-7. Output over 200 KB is cut with `truncated: true`.
+7. Output over 200 KB is never cut. The full redacted JSON is written to an export file (mode `0600`, no overwrite) and the result returns `truncated: true`, `fullSize` and `savedTo`. Definition 199 (about 240 KB) is the live case.
 8. Only the read tools are registered.
 
 Live check: run 1 to 3 against the real org, and search the output for secret values.

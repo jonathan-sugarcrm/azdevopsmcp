@@ -10,6 +10,8 @@ export interface AuditEntry {
   outcome: string;
   duration_ms: number;
   truncated: boolean;
+  /** Export path, only when a file was written (SPEC 7). */
+  saved_to?: string;
   key: "read" | "elevated";
   approval?: "confirmed" | "denied" | "not_asked";
 }

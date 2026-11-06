@@ -11,6 +11,7 @@ const schema = z.strictObject({
   patRef: z.string().regex(OP_REF, "patRef must start with op://"),
   elevatedPatRef: z.string().regex(OP_REF, "elevatedPatRef must start with op://").optional(),
   auditLogPath: z.string().min(1),
+  exportDir: z.string().min(1).default("~/.local/share/azdo-mcp/exports"),
   maxCallsPerMinute: z.number().int().positive().max(600),
 });
 
@@ -27,7 +28,12 @@ export function parseConfig(raw: unknown): Config {
   if (cfg.elevatedPatRef && cfg.elevatedPatRef === cfg.patRef) {
     throw new Error("elevatedPatRef must differ from patRef");
   }
-  return { ...cfg, orgUrl: cfg.orgUrl.replace(/\/$/, ""), vsrmUrl: cfg.vsrmUrl.replace(/\/$/, "") };
+  return {
+    ...cfg,
+    orgUrl: cfg.orgUrl.replace(/\/$/, ""),
+    vsrmUrl: cfg.vsrmUrl.replace(/\/$/, ""),
+    exportDir: expandHome(cfg.exportDir),
+  };
 }
 
 export function loadConfig(path = process.env.AZDO_MCP_CONFIG ?? "~/.config/azdo-mcp/config.json"): Config {

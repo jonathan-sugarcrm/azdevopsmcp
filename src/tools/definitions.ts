@@ -1,5 +1,5 @@
 import { AzdoError } from "../errors.js";
-import { finish, requireProject, type Ctx, type Output } from "./run.js";
+import { finish, finishSized, requireProject, type Ctx, type Output } from "./run.js";
 
 const API = "api-version=7.1";
 const MAX_ROWS = 200;
@@ -90,5 +90,5 @@ export async function getReleaseDefinition(ctx: Ctx, a: { project: string; id: n
     }
   }
   await Promise.all(tasks);
-  return finish(def);
+  return finishSized(ctx, "get_release_definition", project, String(a.id), def);
 }
