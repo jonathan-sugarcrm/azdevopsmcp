@@ -48,7 +48,7 @@ Name-or-id inputs: a numeric value is an id. A string is matched by exact, case-
 |---|---|---|---|---|
 | `list_projects` | none | `GET _apis/projects` | Allowlisted projects only: id, name | none |
 | `list_release_definitions` | project, `name?` | `GET {vsrm}/{project}/_apis/release/definitions` | id, name, path, revision | 200 rows |
-| `get_release_definition` | project, `id_or_name` | `GET {vsrm}/{project}/_apis/release/definitions/{id}` | Environments, tasks, inputs, variables. Redacted (section 4) | 200 KB |
+| `get_release_definition` | project, numeric `id` | `GET {vsrm}/{project}/_apis/release/definitions/{id}`, plus `GET {project}/_apis/distributedtask/taskgroups/{id}` per task group | Environments, tasks, inputs, variables, and each task group expanded as `expandedTaskGroup`. Redacted (section 4). Detail in `docs/features/01-release-definitions.md` | 200 KB |
 | `list_variable_groups` | project, `name?` | `GET {project}/_apis/distributedtask/variablegroups` | id, name, variable names, `isSecret` flags. No values | 200 rows |
 | `get_variable_group` | project, `id_or_name` | `GET {project}/_apis/distributedtask/variablegroups/{id}` | Variables. Non-secret values returned after pattern redaction. Secret variables returned as `isSecret: true`, no value | 200 KB |
 | `list_releases` | project, `definition_id`, `top` (default 10, max 50) | `GET {vsrm}/{project}/_apis/release/releases` | Most recent first: id, name, status, created, environment statuses | 50 rows |
@@ -167,7 +167,7 @@ Further tests: allowlist refusal makes no HTTP call; `ambiguous` and `not_found`
 ## 9. Build and run
 - `npm run build` compiles to `dist/`. `npm test` runs the unit tests.
 - Register in the Claude desktop app MCP config as a stdio server: `node <path>/dist/index.js`, with `AZDO_MCP_CONFIG` set.
-- Read PAT scopes, all read: Release, Build, Variable Groups, Agent Pools, Project and team. No execute scope.
+- Read PAT scopes, all read: Release, Build, Variable Groups, Task Groups, Agent Pools, Project and team. No execute scope.
 - Elevated PAT scope: Release: Read & execute only. Store it in its own 1Password item, with the 1Password prompt set to ask on every access.
 - First-run check: start the server, call `list_projects`, and confirm only the allowlisted projects show.
 
