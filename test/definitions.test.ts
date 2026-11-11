@@ -44,7 +44,7 @@ function setup(route: Route) {
 }
 
 async function connect(ctx: Ctx) {
-  const server = buildServer(ctx);
+  const server = buildServer(async () => ctx);
   const client = new Client({ name: "t", version: "0" });
   const [a, b] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(a), client.connect(b)]);
