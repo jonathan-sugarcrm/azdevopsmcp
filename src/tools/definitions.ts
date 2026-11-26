@@ -93,3 +93,45 @@ export async function getReleaseDefinition(ctx: Ctx, a: { project: string; id: n
   // No byte cap: a cut-off JSON string is unparseable. Oversize results are saved to a file by the client.
   return finish(def, Number.POSITIVE_INFINITY);
 }
+
+function requirePositiveInt(value: number, name: string): void {
+  if (!Number.isInteger(value) || value <= 0) throw new AzdoError("invalid_input", `${name} must be a positive integer`);
+}
+
+/** Revisions of one definition, newest first. Rows only; no definition bodies. */
+export async function listReleaseDefinitionRevisions(ctx: Ctx, a: { project: string; id: number }): Promise<Output> {
+  const project = requireProject(ctx, a.project);
+  requirePositiveInt(a.id, "id");
+  const url = `${ctx.cfg.vsrmUrl}/${encodeURIComponent(project)}/_apis/release/definitions/${a.id}/revisions?${API}`;
+  const res = await ctx.client.getJson<any>(url);
+  const list: any[] = Array.isArray(res) ? res : Array.isArray(res?.value) ? res.value : [];
+  const rows = list
+    .map((r) => ({
+      revision: r.revision,
+      changedDate: r.changedDate,
+      changedBy: r.changedBy?.displayName,
+      changeType: r.changeType,
+    }))
+    .sort((x, y) => Number(y.revision) - Number(x.revision));
+  const total = rows.length;
+  const out = finish(rows.slice(0, MAX_ROWS));
+  if (total > MAX_ROWS) return { ...out, truncated: true, fullSize: total };
+  return out;
+}
+
+/**
+ * One saved revision of a definition, as stored. Task groups are not expanded:
+ * the revision holds references only, and the current group versions would not match it.
+ */
+export async function getReleaseDefinitionRevision(
+  ctx: Ctx,
+  a: { project: string; id: number; revision: number },
+): Promise<Output> {
+  const project = requireProject(ctx, a.project);
+  requirePositiveInt(a.id, "id");
+  requirePositiveInt(a.revision, "revision");
+  const url = `${ctx.cfg.vsrmUrl}/${encodeURIComponent(project)}/_apis/release/definitions/${a.id}/revisions/${a.revision}?${API}`;
+  const def = await ctx.client.getJson<any>(url);
+  // Same rule as getReleaseDefinition: a cut-off JSON string is unparseable, so no byte cap.
+  return finish(def, Number.POSITIVE_INFINITY);
+}

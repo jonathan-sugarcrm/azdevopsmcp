@@ -20,7 +20,12 @@ describe("startup", () => {
       return new Promise<Ctx>(() => {}); // a PAT read that never finishes
     });
     const tools = await client.listTools();
-    expect(tools.tools.map((t) => t.name).sort()).toEqual(["get_release_definition", "list_release_definitions"]);
+    expect(tools.tools.map((t) => t.name).sort()).toEqual([
+      "get_release_definition",
+      "get_release_definition_revision",
+      "list_release_definition_revisions",
+      "list_release_definitions",
+    ]);
     expect(reads).toBe(0);
   });
 
