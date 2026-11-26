@@ -90,5 +90,6 @@ export async function getReleaseDefinition(ctx: Ctx, a: { project: string; id: n
     }
   }
   await Promise.all(tasks);
-  return finish(def);
+  // No byte cap: a cut-off JSON string is unparseable. Oversize results are saved to a file by the client.
+  return finish(def, Number.POSITIVE_INFINITY);
 }
