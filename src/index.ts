@@ -5,7 +5,12 @@ import { fileAudit } from "./audit.js";
 import { readPat } from "./auth.js";
 import { AzdoClient } from "./azdo-client.js";
 import { expandHome, loadConfig } from "./config.js";
-import { getReleaseDefinition, listReleaseDefinitions } from "./tools/definitions.js";
+import {
+  getReleaseDefinition,
+  getReleaseDefinitionRevision,
+  listReleaseDefinitionRevisions,
+  listReleaseDefinitions,
+} from "./tools/definitions.js";
 import { runTool, type Ctx } from "./tools/run.js";
 
 type ToolResult = Awaited<ReturnType<typeof runTool>>;
@@ -34,6 +39,36 @@ export function buildServer(getCtx: GetCtx): McpServer {
       inputSchema: { project: z.string(), id: z.number().int().positive() },
     },
     (a) => withCtx(getCtx, (ctx) => runTool(ctx, "get_release_definition", a, () => getReleaseDefinition(ctx, a))),
+  );
+
+  server.registerTool(
+    "list_release_definition_revisions",
+    {
+      description:
+        "List the saved revisions of one release definition (revision number, changed date, changed by, change type), newest first. Read-only.",
+      inputSchema: { project: z.string(), id: z.number().int().positive() },
+    },
+    (a) =>
+      withCtx(getCtx, (ctx) =>
+        runTool(ctx, "list_release_definition_revisions", a, () => listReleaseDefinitionRevisions(ctx, a)),
+      ),
+  );
+
+  server.registerTool(
+    "get_release_definition_revision",
+    {
+      description:
+        "Get one saved revision of a release definition by id and revision number, as it was stored. Task groups are not expanded. Secret values are masked. Read-only.",
+      inputSchema: {
+        project: z.string(),
+        id: z.number().int().positive(),
+        revision: z.number().int().positive(),
+      },
+    },
+    (a) =>
+      withCtx(getCtx, (ctx) =>
+        runTool(ctx, "get_release_definition_revision", a, () => getReleaseDefinitionRevision(ctx, a)),
+      ),
   );
 
   return server;

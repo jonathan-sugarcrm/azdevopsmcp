@@ -66,7 +66,12 @@ describe("registration", () => {
     const { ctx } = setup(() => ({}));
     const client = await connect(ctx);
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
-    expect(names).toEqual(["get_release_definition", "list_release_definitions"]);
+    expect(names).toEqual([
+      "get_release_definition",
+      "get_release_definition_revision",
+      "list_release_definition_revisions",
+      "list_release_definitions",
+    ]);
   });
 });
 
@@ -165,19 +170,87 @@ describe("get_release_definition", () => {
     expect(r.text).not.toContain("hidden1");
   });
 
-  it("caps output at 200 KB and sets truncated", async () => {
+  it("does not cut large output, so the JSON stays parseable", async () => {
     const big = def([{ definitionType: "task", inputs: { script: "x".repeat(300_000) } }]);
     const { ctx } = setup(() => ({ body: big }));
     const r = await call(ctx, "get_release_definition", { project: "Modax", id: 7 });
-    expect(r.json.truncated).toBe(true);
-    expect(r.json.fullSize).toBeGreaterThan(200 * 1024);
-    expect(r.text.length).toBeLessThan(400 * 1024);
+    expect(r.json.truncated).toBeUndefined();
+    expect(r.json.data.environments[0].deployPhases[0].workflowTasks[0].inputs.script).toHaveLength(300_000);
   });
 
   it("rejects a non-positive id", async () => {
     const { ctx, urls } = setup(() => ({}));
     const client = await connect(ctx);
     const res: any = await client.callTool({ name: "get_release_definition", arguments: { project: "Modax", id: 0 } });
+    expect(res.isError).toBe(true);
+    expect(urls).toHaveLength(0);
+  });
+});
+
+describe("list_release_definition_revisions", () => {
+  const revisions = [
+    { definitionId: 7, revision: 2, changedDate: "2026-02-01T00:00:00Z", changedBy: { displayName: "A", uniqueName: "a@x" }, changeType: "update" },
+    { definitionId: 7, revision: 5, changedDate: "2026-03-01T00:00:00Z", changedBy: { displayName: "B" }, changeType: "update" },
+    { definitionId: 7, revision: 1, changedDate: "2026-01-01T00:00:00Z", changedBy: { displayName: "C" }, changeType: "add" },
+  ];
+
+  it("returns revision rows newest first, without the definition body", async () => {
+    const { ctx, urls } = setup(() => ({ body: { value: revisions } }));
+    const r = await call(ctx, "list_release_definition_revisions", { project: "Modax", id: 7 });
+    expect(r.json.data.map((x: any) => x.revision)).toEqual([5, 2, 1]);
+    expect(r.json.data[0]).toEqual({ revision: 5, changedDate: "2026-03-01T00:00:00Z", changedBy: "B", changeType: "update" });
+    expect(r.text).not.toContain("a@x");
+    expect(urls[0]).toBe("https://vsrm.dev.azure.com/sales-i/Modax/_apis/release/definitions/7/revisions?api-version=7.1");
+  });
+
+  it("caps at 200 rows and sets truncated", async () => {
+    const many = Array.from({ length: 250 }, (_, i) => ({ revision: i + 1, changeType: "update" }));
+    const { ctx } = setup(() => ({ body: { value: many } }));
+    const r = await call(ctx, "list_release_definition_revisions", { project: "Modax", id: 7 });
+    expect(r.json.data).toHaveLength(200);
+    expect(r.json.data[0].revision).toBe(250);
+    expect(r.json.truncated).toBe(true);
+    expect(r.json.fullSize).toBe(250);
+  });
+
+  it("refuses a project outside the allowlist with no HTTP call", async () => {
+    const { ctx, urls } = setup(() => ({ body: { value: revisions } }));
+    const r = await call(ctx, "list_release_definition_revisions", { project: "Other", id: 7 });
+    expect(r.json.error).toBe("project_not_allowed");
+    expect(urls).toHaveLength(0);
+  });
+});
+
+describe("get_release_definition_revision", () => {
+  it("fetches the stored revision and masks secrets", async () => {
+    const body = { id: 7, revision: 3, variables: { Hidden: { value: "topsecret", isSecret: true } }, environments: [] };
+    const { ctx, urls } = setup(() => ({ body }));
+    const r = await call(ctx, "get_release_definition_revision", { project: "Modax", id: 7, revision: 3 });
+    expect(urls[0]).toBe("https://vsrm.dev.azure.com/sales-i/Modax/_apis/release/definitions/7/revisions/3?api-version=7.1");
+    expect(r.json.data.revision).toBe(3);
+    expect(r.text).not.toContain("topsecret");
+  });
+
+  it("does not expand task groups", async () => {
+    const body = { id: 7, environments: [{ deployPhases: [{ workflowTasks: [{ definitionType: "metaTask", taskId: "g1" }] }] }] };
+    const { ctx, urls } = setup(() => ({ body }));
+    const r = await call(ctx, "get_release_definition_revision", { project: "Modax", id: 7, revision: 3 });
+    expect(urls).toHaveLength(1);
+    expect(r.json.data.environments[0].deployPhases[0].workflowTasks[0].expandedTaskGroup).toBeUndefined();
+  });
+
+  it("does not cut large output", async () => {
+    const body = { id: 7, environments: [{ name: "x", inputs: { script: "x".repeat(300_000) } }] };
+    const { ctx } = setup(() => ({ body }));
+    const r = await call(ctx, "get_release_definition_revision", { project: "Modax", id: 7, revision: 3 });
+    expect(r.json.truncated).toBeUndefined();
+    expect(r.json.data.environments[0].inputs.script).toHaveLength(300_000);
+  });
+
+  it("rejects a non-positive revision with no HTTP call", async () => {
+    const { ctx, urls } = setup(() => ({}));
+    const client = await connect(ctx);
+    const res: any = await client.callTool({ name: "get_release_definition_revision", arguments: { project: "Modax", id: 7, revision: 0 } });
     expect(res.isError).toBe(true);
     expect(urls).toHaveLength(0);
   });
